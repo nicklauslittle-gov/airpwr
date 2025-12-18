@@ -19,8 +19,22 @@ function GetTagsList {
 		return [PSCustomObject]@{ Name = $repo; Tags = (Get-ChildItem $repo -Directory -Name) }
 	}
 	$api = "/v2/$(GetDockerRepo)/tags/list"
-	$endpoint = "https://index.docker.io$api"
-	return HttpRequest $endpoint -AuthToken (GetAuthToken) | HttpSend | GetJsonResponse
+	$n = 999
+	$last = $null
+	$allTags = $null
+	while ($true) {
+		$endpoint = "https://index.docker.io$($api)?n=$n$(if ($last) { "&last=$last" })"
+		$currentTags = HttpRequest $endpoint -AuthToken (GetAuthToken) | HttpSend | GetJsonResponse
+		if ($allTags) {
+			$allTags.tags += $currentTags.tags
+		} else {
+			$allTags = $currentTags
+		}
+		if ($currentTags.tags.Length -lt $n) {
+			return $allTags
+		}
+		$last = $currentTags.tags[$currentTags.tags.Length - 1]
+	}
 }
 
 function GetManifest {
